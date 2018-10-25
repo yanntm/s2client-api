@@ -73,6 +73,21 @@ public:
     //!< \param unit The idle unit.
     virtual void OnUnitIdle(const Unit*) {}
 
+    //! Called when a friendly unit becomes attacked, this will only occur as an event so will only be called when the unit becomes
+    //! attacked i.e. it has lost HP or shields in the last step.
+    //!< \param unit The victim unit.
+    virtual void OnUnitAttacked(const Unit*) {}
+
+    //! Called when a friendly unit has attacked, this will only occur as an event so will only be called when the unit has
+    //! attacked i.e. it has newly entered cooldown.
+    //!< \param unit The unit.
+    virtual void OnUnitHasAttacked(const Unit*) {}
+
+    //! Called when a friendly unit has reset its attack, this will only occur as an event so will only be called when the unit becomes
+    //! available for attack i.e. it has 0 cooldown again
+    //!< \param unit The unit.
+    virtual void OnUnitReadyAttack(const Unit*) {}
+
     //! Called when an upgrade is finished, warp gate, ground weapons, baneling speed, etc.
     //!< \param upgrade The completed upgrade.
     virtual void OnUpgradeCompleted(UpgradeID) {}
