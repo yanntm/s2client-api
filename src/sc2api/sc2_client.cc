@@ -33,6 +33,8 @@ public:
     // Game state info.
     UnitPool unit_pool_;
     std::unordered_map<Tag, Unit> units_previous_map_;
+    std::unordered_map<Tag, float> units_previous_health_map_;
+    std::unordered_map<Tag, bool> units_previous_oncd_map_;
     uint32_t current_game_loop_;
     uint32_t previous_game_loop;
     RawActions raw_actions_;
@@ -1422,6 +1424,7 @@ public:
 
     void IssueUnitDestroyedEvents();
     void IssueUnitAddedEvents();
+    void IssueAttackEvents();
     void IssueIdleEvent(const Unit* unit, const std::vector<Tag>& commands);
     void IssueBuildingCompletedEvent(const Unit* unit);
     void IssueAlertEvents();
@@ -2036,6 +2039,34 @@ void ControlImp::IssueUnitDestroyedEvents() {
     }
 }
 
+void ControlImp::IssueAttackEvents() {
+    observation_imp_->unit_pool_.ForEachExistingUnit([&](sc2::Unit& unit) {
+        if (unit.alliance == Unit::Alliance::Self&& unit.is_alive) {
+            auto found = observation_imp_->units_previous_health_map_.find(unit.tag);
+            if (found == observation_imp_->units_previous_health_map_.end()) {
+                observation_imp_->units_previous_health_map_[unit.tag] = unit.health + unit.shield;
+                observation_imp_->units_previous_oncd_map_[unit.tag] = false;
+                return;
+            }
+            else {
+                if (unit.health + unit.shield < found->second) {
+                    client_.OnUnitAttacked(& unit);                
+                }
+                observation_imp_->units_previous_health_map_[unit.tag] = unit.health + unit.shield;
+                bool wasoncd = observation_imp_->units_previous_oncd_map_[unit.tag];                
+                if (unit.weapon_cooldown != 0 && unit.weapon_cooldown <= 16.0f && ! wasoncd) {
+                    client_.OnUnitHasAttacked(&unit);
+                    observation_imp_->units_previous_oncd_map_[unit.tag] = true;
+                }
+                if (unit.weapon_cooldown == 0 && wasoncd) {
+                    client_.OnUnitReadyAttack(& unit);
+                    observation_imp_->units_previous_oncd_map_[unit.tag] = false;
+                }
+                }
+            }       
+    });
+}
+
 void ControlImp::IssueUnitAddedEvents() {
     observation_imp_->unit_pool_.ForEachExistingUnit([&](sc2::Unit& unit) {
         auto found = observation_imp_->units_previous_map_.find(unit.tag);
@@ -2087,6 +2118,10 @@ void ControlImp::IssueIdleEvent(const Unit* unit, const std::vector<Tag>& comman
             break;
         }
     }
+    if (!unit->is_alive) {
+        return;
+    }
+   
 }
 
 void ControlImp::IssueBuildingCompletedEvent(const Unit* unit) {
@@ -2155,7 +2190,7 @@ bool ControlImp::IssueEvents(const std::vector<Tag>& commands) {
 
     IssueUpgradeEvents();
     IssueAlertEvents();
-
+    IssueAttackEvents();
     // Run the users OnStep function after events have been issued.
     client_.OnStep();
 
